@@ -47,7 +47,7 @@ class TransE(BaseModel):
         self.mdl.cuda()
         self.config = config
 
-    def pretrain(self, train_data, corrupter, tester):
+    def pretrain(self, train_data, corrupter, tester=None):
         src, rel, dst = train_data
         n_train = len(src)
         optimizer = Adam(self.mdl.parameters())
@@ -77,8 +77,8 @@ class TransE(BaseModel):
                 epoch_loss += loss.data[0]
             logging.info('Epoch %d/%d, Loss=%f', epoch + 1, n_epoch, epoch_loss / n_train)
             if (epoch + 1) % self.config.epoch_per_test == 0:
-                test_perf = tester()
-                if test_perf > best_perf:
-                    self.save(os.path.join(config().task.dir, self.config.model_file))
-                    best_perf = test_perf
+                # test_perf = tester()
+                # if test_perf > best_perf:
+                self.save(os.path.join(config().task.dir, self.config.model_file))
+                    # best_perf = test_perf
         return best_perf

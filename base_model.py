@@ -7,6 +7,7 @@ from torch.optim import Adam
 from metrics import mrr_mr_hitk
 from data_utils import batch_by_size
 import logging
+import os
 
 
 class BaseModule(nn.Module):
@@ -95,6 +96,8 @@ class BaseModel(object):
     def test_link(self, test_data, n_ent, heads, tails, filt=True):
         mrr_tot = 0
         mr_tot = 0
+        hit1_tot = 0
+        hit3_tot = 0
         hit10_tot = 0
         count = 0
         for batch_s, batch_r, batch_t in batch_by_size(config().test_batch_size, *test_data):
@@ -116,14 +119,23 @@ class BaseModel(object):
                         tmp = src_scores[s]
                         src_scores += heads[(t, r)].cuda() * 1e30
                         src_scores[s] = tmp
-                mrr, mr, hit10 = mrr_mr_hitk(dst_scores, t)
+                mrr, mr, hit1, hit3, hit10 = mrr_mr_hitk(dst_scores, t)
                 mrr_tot += mrr
                 mr_tot += mr
+                hit1_tot += hit1
+                hit3_tot += hit3
                 hit10_tot += hit10
-                mrr, mr, hit10 = mrr_mr_hitk(src_scores, s)
+                mrr, mr, hit1, hit3, hit10 = mrr_mr_hitk(src_scores, s)
                 mrr_tot += mrr
                 mr_tot += mr
+                hit1_tot += hit1
+                hit3_tot += hit3
                 hit10_tot += hit10
                 count += 2
-        logging.info('Test_MRR=%f, Test_MR=%f, Test_H@10=%f', mrr_tot / count, mr_tot / count, hit10_tot / count)
+        logging.info('Test_MRR=%f, Test_MR=%f, Test_H@1=%f, Test_H@3=%f, Test_H@10=%f', mrr_tot / count, mr_tot / count, hit1_tot / count, hit3_tot / count, hit10_tot / count)
+        writeList = ['testSet', '%.6f' % hit1_tot / count, '%.6f' % hit3_tot / count, '%.6f' % hit10_tot / count, '%.6f' % mr_tot / count,
+                     '%.6f' % mrr_tot / count]
+        # Write the result into file
+        with open(os.path.join('./result/', config().task.dir.split('/')[-1] + '_' + config().pretrain_config), 'a') as fw:
+            fw.write('\t'.join(writeList) + '\n')
         return mrr_tot / count
