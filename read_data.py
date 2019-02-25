@@ -1,5 +1,6 @@
 from itertools import count
 from collections import namedtuple
+import numpy as np
 
 KBIndex = namedtuple('KBIndex', ['ent_list', 'rel_list', 'ent_id', 'rel_id'])
 
@@ -24,7 +25,7 @@ def graph_size(kb_index):
     return len(kb_index.ent_id), len(kb_index.rel_id)
 
 
-def read_data(filename, kb_index):
+def read_data(filename, kb_index, filename2=None):
     src = []
     rel = []
     dst = []
@@ -34,4 +35,5 @@ def read_data(filename, kb_index):
             src.append(kb_index.ent_id[s])
             rel.append(kb_index.rel_id[r])
             dst.append(kb_index.ent_id[t])
-    return src, rel, dst
+    tem = np.load(filename2).tolist()
+    return src, rel, dst, tem

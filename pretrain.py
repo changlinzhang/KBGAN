@@ -24,10 +24,10 @@ kb_index = index_ent_rel(os.path.join(task_dir, 'train2id.txt'),
                          os.path.join(task_dir, 'test2id.txt'))
 n_ent, n_rel = graph_size(kb_index)
 
-train_data = read_data(os.path.join(task_dir, 'train2id.txt'), kb_index)
+train_data = read_data(os.path.join(task_dir, 'train2id.txt'), kb_index, os.path.join(task_dir, 'train_tem.npy'))
 inplace_shuffle(*train_data)
 # valid_data = read_data(os.path.join(task_dir, 'valid2id.txt'), kb_index)
-test_data = read_data(os.path.join(task_dir, 'test2id.txt'), kb_index)
+test_data = read_data(os.path.join(task_dir, 'test2id.txt'), kb_index, os.path.join(task_dir, 'test_tem.npy'))
 # heads, tails = heads_tails(n_ent, train_data, valid_data, test_data)
 heads, tails = heads_tails(n_ent, train_data, test_data)
 # valid_data = [torch.LongTensor(vec) for vec in valid_data]
@@ -46,10 +46,16 @@ elif mdl_type == 'TransD':
 elif mdl_type == 'DistMult':
     corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
     gen = DistMult(n_ent, n_rel, gen_config)
+elif mdl_type == 'TADistMult':
+    corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
+    gen = DistMult(n_ent, n_rel, gen_config)
 elif mdl_type == 'ComplEx':
     corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
     gen = ComplEx(n_ent, n_rel, gen_config)
 # gen.pretrain(train_data, corrupter, tester)
+model_path_name = os.path.join(task_dir, gen_config.model_file)
+# if os.path.exists(model_path_name):
+#     gen.load(model_path_name)
 # gen.pretrain(train_data, corrupter)
-gen.load(os.path.join(task_dir, gen_config.model_file))
+gen.load(model_path_name)
 gen.test_link(test_data, n_ent, heads, tails)

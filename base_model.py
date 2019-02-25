@@ -14,31 +14,56 @@ class BaseModule(nn.Module):
     def __init__(self):
         super(BaseModule, self).__init__()
 
-    def score(self, src, rel, dst):
+    def score(self, src, rel, dst, tem):
         raise NotImplementedError
 
-    def dist(self, src, rel, dst):
+    def dist(self, src, rel, dst, tem):
         raise NotImplementedError
 
-    def prob_logit(self, src, rel, dst):
+    def prob_logit(self, src, rel, dst, tem):
         raise NotImplementedError
 
-    def prob(self, src, rel, dst):
-        return nnf.softmax(self.prob_logit(src, rel, dst))
+    def prob(self, src, rel, dst, tem):
+        return nnf.softmax(self.prob_logit(src, rel, dst, tem))
 
     def constraint(self):
         pass
 
-    def pair_loss(self, src, rel, dst, src_bad, dst_bad):
-        d_good = self.dist(src, rel, dst)
-        d_bad = self.dist(src_bad, rel, dst_bad)
+    def pair_loss(self, src, rel, dst, src_bad, dst_bad, tem):
+        d_good = self.dist(src, rel, dst, tem)
+        d_bad = self.dist(src_bad, rel, dst_bad, tem)
         return nnf.relu(self.margin + d_good - d_bad)
 
-    def softmax_loss(self, src, rel, dst, truth):
-        probs = self.prob(src, rel, dst)
+    def softmax_loss(self, src, rel, dst, tem, truth):
+        probs = self.prob(src, rel, dst, tem)
         n = probs.size(0)
         truth_probs = torch.log(probs[torch.arange(0, n).type(torch.LongTensor).cuda(), truth] + 1e-30)
         return -truth_probs
+
+    def get_rseq(self, pos_r, pos_tem):
+        # print(pos_r.size()) [728, 20]
+        # print(pos_tem.size()) [728, 20, 7]
+        pos_r_e = self.rel_embed(pos_r)
+        pos_r_e = pos_r_e.unsqueeze(0).transpose(0, 1)
+        pos_r_e = pos_r_e.transpose(1, 2)
+
+        bs = pos_tem.size(0)  # batch size
+        n_sample = pos_tem.size(1)
+        pos_tem = pos_tem.contiguous()
+        pos_tem = pos_tem.view(bs * n_sample, -1)
+        token_e = self.tem_embed(pos_tem)
+        token_e = token_e.view(bs, n_sample, -1, self.config.dim)
+        pos_seq_e = torch.cat((pos_r_e, token_e), 2)
+        pos_seq_e = pos_seq_e.view(bs * n_sample, -1, self.config.dim)
+        # print(pos_seq_e.size())
+
+        hidden_tem = self.lstm(pos_seq_e)
+        hidden_tem = hidden_tem[0, :, :]
+        # pos_rseq_e = hidden_tem
+        pos_rseq_e = hidden_tem.view(bs, n_sample, -1, self.config.dim)
+
+        # print(pos_rseq_e)
+        return pos_rseq_e
 
 
 class BaseModel(object):
@@ -76,7 +101,7 @@ class BaseModel(object):
             self.mdl.constraint()
         yield None
 
-    def dis_step(self, src, rel, dst, src_fake, dst_fake, train=True):
+    def dis_step(self, src, rel, dst, src_fake, dst_fake, tem, train=True):
         if not hasattr(self, 'opt'):
             self.opt = Adam(self.mdl.parameters(), weight_decay=self.weight_decay)
         src_var = Variable(src.cuda())
@@ -84,8 +109,9 @@ class BaseModel(object):
         dst_var = Variable(dst.cuda())
         src_fake_var = Variable(src_fake.cuda())
         dst_fake_var = Variable(dst_fake.cuda())
-        losses = self.mdl.pair_loss(src_var, rel_var, dst_var, src_fake_var, dst_fake_var)
-        fake_scores = self.mdl.score(src_fake_var, rel_var, dst_fake_var)
+        tem_var = Variable(tem.cuda())
+        losses = self.mdl.pair_loss(src_var, rel_var, dst_var, src_fake_var, dst_fake_var, tem_var)
+        fake_scores = self.mdl.score(src_fake_var, rel_var, dst_fake_var, tem_var)
         if train:
             self.mdl.zero_grad()
             torch.sum(losses).backward()
@@ -100,15 +126,19 @@ class BaseModel(object):
         hit3_tot = 0
         hit10_tot = 0
         count = 0
-        for batch_s, batch_r, batch_t in batch_by_size(config().test_batch_size, *test_data):
+        self.mdl.eval()
+        for batch_s, batch_r, batch_t, batch_tem in batch_by_size(config().test_batch_size, *test_data):
             batch_size = batch_s.size(0)
-            rel_var = Variable(batch_r.unsqueeze(1).expand(batch_size, n_ent).cuda())
-            src_var = Variable(batch_s.unsqueeze(1).expand(batch_size, n_ent).cuda())
-            dst_var = Variable(batch_t.unsqueeze(1).expand(batch_size, n_ent).cuda())
+            rel_var = Variable(batch_r.unsqueeze(1).expand(batch_size, n_ent).cuda(), volatile=True)
+            src_var = Variable(batch_s.unsqueeze(1).expand(batch_size, n_ent).cuda(), volatile=True)
+            dst_var = Variable(batch_t.unsqueeze(1).expand(batch_size, n_ent).cuda(), volatile=True)
+            tem_last_dim = batch_tem.size(-1)
+            tem_var = Variable(batch_tem.unsqueeze(1).expand(batch_size, n_ent, tem_last_dim).cuda(), volatile=True)
             all_var = Variable(torch.arange(0, n_ent).unsqueeze(0).expand(batch_size, n_ent)
                                .type(torch.LongTensor).cuda(), volatile=True)
-            batch_dst_scores = self.mdl.score(src_var, rel_var, all_var).data
-            batch_src_scores = self.mdl.score(all_var, rel_var, dst_var).data
+            self.mdl.zero_grad()
+            batch_dst_scores = self.mdl.score(src_var, rel_var, all_var, tem_var).data
+            batch_src_scores = self.mdl.score(all_var, rel_var, dst_var, tem_var).data
             for s, r, t, dst_scores, src_scores in zip(batch_s, batch_r, batch_t, batch_dst_scores, batch_src_scores):
                 if filt:
                     if tails[(s, r)]._nnz() > 1:
@@ -133,8 +163,8 @@ class BaseModel(object):
                 hit10_tot += hit10
                 count += 2
         logging.info('Test_MRR=%f, Test_MR=%f, Test_H@1=%f, Test_H@3=%f, Test_H@10=%f', mrr_tot / count, mr_tot / count, hit1_tot / count, hit3_tot / count, hit10_tot / count)
-        writeList = ['testSet', '%.6f' % hit1_tot / count, '%.6f' % hit3_tot / count, '%.6f' % hit10_tot / count, '%.6f' % mr_tot / count,
-                     '%.6f' % mrr_tot / count]
+        writeList = ['testSet', '%.6f' % (hit1_tot / count), '%.6f' % (hit3_tot / count), '%.6f' % (hit10_tot / count), '%.6f' % (mr_tot / count),
+                     '%.6f' % (mrr_tot / count)]
         # Write the result into file
         with open(os.path.join('./result/', config().task.dir.split('/')[-1] + '_' + config().pretrain_config), 'a') as fw:
             fw.write('\t'.join(writeList) + '\n')

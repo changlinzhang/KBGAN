@@ -3,13 +3,13 @@ from collections import defaultdict
 import torch
 
 def heads_tails(n_ent, train_data, valid_data=None, test_data=None):
-    train_src, train_rel, train_dst = train_data
+    train_src, train_rel, train_dst, _ = train_data
     if valid_data:
-        valid_src, valid_rel, valid_dst = valid_data
+        valid_src, valid_rel, valid_dst, _ = valid_data
     else:
         valid_src = valid_rel = valid_dst = []
     if test_data:
-        test_src, test_rel, test_dst = test_data
+        test_src, test_rel, test_dst, _ = test_data
     else:
         test_src = test_rel = test_dst = []
     all_src = train_src + valid_src + test_src

@@ -3,10 +3,11 @@ from collections import defaultdict
 import numpy as np
 from numpy.random import choice, randint
 from random import sample
+from config import config
 
 
 def get_bern_prob(data, n_ent, n_rel):
-    src, rel, dst = data
+    src, rel, dst, _ = data
     edges = defaultdict(lambda: defaultdict(lambda: set()))
     rev_edges = defaultdict(lambda: defaultdict(lambda: set()))
     for s, r, t in zip(src, rel, dst):
@@ -40,13 +41,17 @@ class BernCorrupterMulti(object):
         self.n_ent = n_ent
         self.n_sample = n_sample
 
-    def corrupt(self, src, rel, dst, keep_truth=True):
+    def corrupt(self, src, rel, dst, tem, keep_truth=True):
+        if config().keep_truth == 0:
+            keep_truth = False
         n = len(src)
         prob = self.bern_prob[rel]
         selection = torch.bernoulli(prob).numpy().astype('bool')
         src_out = np.tile(src.numpy(), (self.n_sample, 1)).transpose()
         dst_out = np.tile(dst.numpy(), (self.n_sample, 1)).transpose()
         rel_out = rel.unsqueeze(1).expand(n, self.n_sample)
+        tem_last_dim = tem.size(-1)
+        tem_out = tem.unsqueeze(1).expand(n, self.n_sample, tem_last_dim)
         if keep_truth:
             ent_random = choice(self.n_ent, (n, self.n_sample - 1))
             src_out[selection, 1:] = ent_random[selection]
@@ -55,4 +60,4 @@ class BernCorrupterMulti(object):
             ent_random = choice(self.n_ent, (n, self.n_sample))
             src_out[selection, :] = ent_random[selection]
             dst_out[~selection, :] = ent_random[~selection]
-        return torch.from_numpy(src_out), rel_out, torch.from_numpy(dst_out)
+        return torch.from_numpy(src_out), rel_out, torch.from_numpy(dst_out), tem_out
