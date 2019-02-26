@@ -60,7 +60,7 @@ class BaseModule(nn.Module):
         hidden_tem = self.lstm(pos_seq_e)
         hidden_tem = hidden_tem[0, :, :]
         # pos_rseq_e = hidden_tem
-        pos_rseq_e = hidden_tem.view(bs, n_sample, -1, self.config.dim)
+        pos_rseq_e = hidden_tem.view(bs, n_sample, self.config.dim)
 
         # print(pos_rseq_e)
         return pos_rseq_e

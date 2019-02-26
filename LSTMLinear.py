@@ -18,9 +18,7 @@ class LSTMModel(nn.Module):
         self.lstm = LSTMLinear(in_dim, self.hidden_dim)
 
     def forward(self, x):
-        # print(x.size())
         out, h = self.lstm(x)
-        # print(h[0].size())
         return h[0]
 
 
@@ -74,10 +72,6 @@ class LSTMCell(nn.Module):
 
     @staticmethod
     def _init_hidden(input_, hidden_size, training):
-        # print(input_.size())
-        # h = th.zeros((1, input_.size(1), hidden_size))
-        # c = th.zeros((1, input_.size(1), hidden_size))
-        # input_.view(1, input_.size(0), -1)
         if training:
             h = Variable(th.zeros(1, input_.size(0), hidden_size).cuda())
             # print(h.size())
@@ -100,23 +94,16 @@ class LSTMLinear(nn.Module):
 
         if self.batch_first:
             input_ = input_.transpose(0, 1)
-        # outputs = []
-        # for x in torch.unbind(input_, dim=1):
-        # for x in torch.unbind(input_, dim=0):
-        #     hidden = self.lstm_cell(x, hidden)
-        #     outputs.append(hidden[0].clone())
 
         outputs = []
         steps = range(input_.size(0))
         for i in steps:
-            print(input_[i].size())
             hidden = self.lstm_cell(input_[i], hidden)
             if isinstance(hidden, tuple):
                 outputs.append(hidden[0])
             else:
                 outputs.append(hidden)
 
-        # return torch.stack(outputs, dim=1)
         outputs = torch.stack(outputs, dim=0)
         if self.batch_first:
             outputs = outputs.transpose(0, 1)

@@ -10,6 +10,7 @@ from select_gpu import select_gpu
 from trans_e import TransE
 from trans_d import TransD
 from distmult import DistMult
+from tadistmult import TADistMult
 from compl_ex import ComplEx
 
 logger_init()
@@ -23,6 +24,7 @@ task_dir = config().task.dir
 kb_index = index_ent_rel(os.path.join(task_dir, 'train2id.txt'),
                          os.path.join(task_dir, 'test2id.txt'))
 n_ent, n_rel = graph_size(kb_index)
+print(n_ent, n_rel)
 
 train_data = read_data(os.path.join(task_dir, 'train2id.txt'), kb_index, os.path.join(task_dir, 'train_tem.npy'))
 inplace_shuffle(*train_data)
@@ -48,14 +50,15 @@ elif mdl_type == 'DistMult':
     gen = DistMult(n_ent, n_rel, gen_config)
 elif mdl_type == 'TADistMult':
     corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
-    gen = DistMult(n_ent, n_rel, gen_config)
+    gen = TADistMult(n_ent, n_rel, gen_config)
 elif mdl_type == 'ComplEx':
     corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
     gen = ComplEx(n_ent, n_rel, gen_config)
 # gen.pretrain(train_data, corrupter, tester)
-model_path_name = os.path.join(task_dir, gen_config.model_file)
-# if os.path.exists(model_path_name):
-#     gen.load(model_path_name)
-# gen.pretrain(train_data, corrupter)
+model_path_name = os.path.join(task_dir, config().task.dir.split('/')[-1] + '_' + gen_config.model_file)
+if config().train == 1:
+    if os.path.exists(model_path_name):
+        gen.load(model_path_name)
+    gen.pretrain(train_data, corrupter)
 gen.load(model_path_name)
 gen.test_link(test_data, n_ent, heads, tails)
