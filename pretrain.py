@@ -50,6 +50,11 @@ elif mdl_type == 'ComplEx':
     corrupter = BernCorrupterMulti(train_data, n_ent, n_rel, gen_config.n_sample)
     gen = ComplEx(n_ent, n_rel, gen_config)
 # gen.pretrain(train_data, corrupter, tester)
-# gen.pretrain(train_data, corrupter)
-gen.load(os.path.join(task_dir, gen_config.model_file))
+model_path_name = os.path.join(task_dir, config().task.dir.split('/')[-1] + '_' + gen_config.model_file)
+print(model_path_name)
+if config().train == 1:
+    if os.path.exists(model_path_name):
+        gen.load(model_path_name)
+    gen.pretrain(train_data, corrupter)
+gen.load(model_path_name)
 gen.test_link(test_data, n_ent, heads, tails)

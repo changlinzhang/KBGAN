@@ -133,8 +133,8 @@ class BaseModel(object):
                 hit10_tot += hit10
                 count += 2
         logging.info('Test_MRR=%f, Test_MR=%f, Test_H@1=%f, Test_H@3=%f, Test_H@10=%f', mrr_tot / count, mr_tot / count, hit1_tot / count, hit3_tot / count, hit10_tot / count)
-        writeList = ['testSet', '%.6f' % hit1_tot / count, '%.6f' % hit3_tot / count, '%.6f' % hit10_tot / count, '%.6f' % mr_tot / count,
-                     '%.6f' % mrr_tot / count]
+        writeList = ['testSet', '%.6f' % (hit1_tot / count), '%.6f' % (hit3_tot / count), '%.6f' % (hit10_tot / count), '%.6f' % (mr_tot / count),
+                     '%.6f' % (mrr_tot / count)]
         # Write the result into file
         with open(os.path.join('./result/', config().task.dir.split('/')[-1] + '_' + config().pretrain_config), 'a') as fw:
             fw.write('\t'.join(writeList) + '\n')
